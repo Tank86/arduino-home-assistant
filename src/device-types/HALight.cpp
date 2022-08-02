@@ -4,12 +4,11 @@
 #include "../HAMqtt.h"
 #include "../HADevice.h"
 
-const char* HALight::PercentageCommandTopic = {"sct"};  	//TODO rename to brightness topic
-const char* HALight::PercentageStateTopic = {"sst"};	//TODO rename to brightness topic
+const char* HALight::BrightnessStateTopic = {"bst"};	//brightness_state_topic
+const char* HALight::BrightnessCommandTopic = {"bct"};  //brightness_command_topic 
 
 HALight::HALight(const char* uniqueId) :
     BaseDeviceType("light", uniqueId),
-    _features(features),
     _currentState(false),
     _stateCallback(nullptr),
     _currentBrightness(0),
@@ -42,7 +41,7 @@ void HALight::onMqttConnected()
 
     DeviceTypeSerializer::mqttSubscribeTopic(
         this,
-        PercentageCommandTopic
+        BrightnessCommandTopic
     );
 
     if (!_retain) {
@@ -62,7 +61,7 @@ void HALight::onMqttMessage(
     if (compareTopics(topic, DeviceTypeSerializer::CommandTopic)) {
         bool state = (length == strlen(DeviceTypeSerializer::StateOn));
         setState(state, true);
-    } else if (compareTopics(topic, PercentageCommandTopic)) {
+    } else if (compareTopics(topic, BrightnessCommandTopic)) {
         char brightnessStr[length + 1];
         memset(brightnessStr, 0, sizeof(brightnessStr));
         memcpy(brightnessStr, payload, length);
@@ -124,7 +123,7 @@ bool HALight::publishState(bool state)
     );
 }
 
-bool HALight::publishBrightness(uint8_t brightness);
+bool HALight::publishBrightness(uint8_t brightness)
 {
     if (strlen(uniqueId()) == 0) {
         return false;
@@ -137,7 +136,7 @@ bool HALight::publishBrightness(uint8_t brightness);
 
     return DeviceTypeSerializer::mqttPublishMessage(
         this,
-        PercentageStateTopic,
+        BrightnessStateTopic,
         str
     );
 }
@@ -202,12 +201,12 @@ uint16_t HALight::calculateSerializedLength(const char* serializedDevice) const
 
     // brightness
     {
-        // percentage command topic
+        // Brightness command topic
         {
             const uint16_t& topicLength = DeviceTypeSerializer::calculateTopicLength(
                 componentName(),
                 uniqueId(),
-                PercentageCommandTopic,
+                BrightnessCommandTopic,
                 false
             );
 
@@ -215,16 +214,16 @@ uint16_t HALight::calculateSerializedLength(const char* serializedDevice) const
                 return 0;
             }
 
-            // Field format: ,"pct_cmd_t":"[TOPIC]"
+            // Field format: ,"bri_cmd_t":"[TOPIC]"
             size += topicLength + 15; // 15 - length of the JSON decorators for this field
         }
 
-        // percentage state topic
+        // Brightness state topic
         {
             const uint16_t& topicLength = DeviceTypeSerializer::calculateTopicLength(
                 componentName(),
                 uniqueId(),
-                PercentageStateTopic,
+                BrightnessStateTopic,
                 false
             );
 
@@ -232,25 +231,17 @@ uint16_t HALight::calculateSerializedLength(const char* serializedDevice) const
                 return 0;
             }
 
-            // Field format: ,"pct_stat_t":"[TOPIC]"
+            // Field format: ,"bri_stat_t":"[TOPIC]"
             size += topicLength + 16; // 16 - length of the JSON decorators for this field
         }
 
-#if TODO_BRIGHTNESSRANGE
-        // brightness range min
-        if (_speedRangeMin != 1) {
-            uint8_t digitsNb = floor(log10(_speedRangeMin)) + 1;
+#if TODO_BRIGHTNESS_SCLALE
+        // brightness scale
+        if (_brightnessScale != 255) {
+            uint8_t digitsNb = floor(log10(_brightnessScale)) + 1;
 
-            // Field format: ,"spd_rng_min":[VALUE]
-            size += digitsNb + 15; // 15 - length of the JSON decorators for this field
-        }
-
-        // brightness range max
-        if (_speedRangeMax != 100) {
-            uint8_t digitsNb = floor(log10(_speedRangeMax)) + 1;
-
-            // Field format: ,"spd_rng_max":[VALUE]
-            size += digitsNb + 15; // 15 - length of the JSON decorators for this field
+            // Field format: ,"bri_scl":[VALUE]
+            size += digitsNb + 12; // 12 - length of the JSON decorators for this field
         }
 #endif
     }
@@ -299,48 +290,33 @@ bool HALight::writeSerializedData(const char* serializedDevice) const
     {
         // percentage command topic
         {
-            static const char Prefix[] PROGMEM = {",\"pct_cmd_t\":\""};
+            static const char Prefix[] PROGMEM = {",\"bri_cmd_t\":\""};
             DeviceTypeSerializer::mqttWriteTopicField(
                 this,
                 Prefix,
-                PercentageCommandTopic
+                BrightnessCommandTopic
             );
         }
 
         // percentage state topic
         {
-            static const char Prefix[] PROGMEM = {",\"pct_stat_t\":\""};
+            static const char Prefix[] PROGMEM = {",\"bri_stat_t\":\""};
             DeviceTypeSerializer::mqttWriteTopicField(
                 this,
                 Prefix,
-                PercentageStateTopic
+                BrightnessStateTopic
             );
         }
 
-#if TODO_BRIGHTNESSRANGE
-        // brightness range min
-        if (_speedRangeMin != 1) {
-            uint8_t digitsNb = floor(log10(_speedRangeMin)) + 1;
+#if TODO_BRIGHTNES_SCALE
+        // brightness scale
+        if (_brightnessScale != 255) {
+            uint8_t digitsNb = floor(log10(_brightnessScale)) + 1;
             char str[digitsNb + 1]; // + null terminator
             memset(str, 0, sizeof(str));
-            itoa(_speedRangeMin, str, 10);
+            itoa(_brightnessScale, str, 10);
 
-            static const char Prefix[] PROGMEM = {",\"spd_rng_min\":"};
-            DeviceTypeSerializer::mqttWriteConstCharField(
-                Prefix,
-                str,
-                false
-            );
-        }
-
-        // brightness range max
-        if (_speedRangeMax != 100) {
-            uint8_t digitsNb = floor(log10(_speedRangeMax)) + 1;
-            char str[digitsNb + 1]; // + null terminator
-            memset(str, 0, sizeof(str));
-            itoa(_speedRangeMax, str, 10);
-
-            static const char Prefix[] PROGMEM = {",\"spd_rng_max\":"};
+            static const char Prefix[] PROGMEM = {",\"bri_scl\":"};
             DeviceTypeSerializer::mqttWriteConstCharField(
                 Prefix,
                 str,

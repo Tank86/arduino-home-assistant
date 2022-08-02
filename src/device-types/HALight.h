@@ -12,8 +12,8 @@
 class HALight : public BaseDeviceType
 {
 public:
-    static const char* PercentageCommandTopic;
-    static const char* PercentageStateTopic;
+    static const char* BrightnessCommandTopic;
+    static const char* BrightnessStateTopic;
 
     HALight(const char* uniqueId);
     HALight(const char* uniqueId, HAMqtt& mqtt); // legacy constructor
