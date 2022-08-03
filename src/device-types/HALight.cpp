@@ -6,6 +6,8 @@
 
 const char* HALight::BrightnessStateTopic = {"bst"};	//brightness_state_topic
 const char* HALight::BrightnessCommandTopic = {"bct"};  //brightness_command_topic 
+const char* HALight::RGBStateTopic = {"rst"};           //rgb_state_topic 
+const char* HALight::RGBCommandTopic = {"rct"};         //rgb_command_topic 
 
 HALight::HALight(const char* uniqueId) :
     BaseDeviceType("light", uniqueId),
@@ -13,6 +15,10 @@ HALight::HALight(const char* uniqueId) :
     _stateCallback(nullptr),
     _currentBrightness(0),
     _brightnessCallback(nullptr),
+    _colorRed(0),
+    _colorGreen(0),
+    _colorBlue(0),
+    _colorCallback(nullptr),
     _retain(false),
     _icon(nullptr)
 {
@@ -44,9 +50,15 @@ void HALight::onMqttConnected()
         BrightnessCommandTopic
     );
 
+    DeviceTypeSerializer::mqttSubscribeTopic(
+        this,
+        RGBCommandTopic
+    );
+
     if (!_retain) {
         publishState(_currentState);
         publishBrightness(_currentBrightness);
+        publishRGBColor(_colorRed, _colorGreen, _colorBlue);
     }
 }
 
@@ -56,8 +68,6 @@ void HALight::onMqttMessage(
     const uint16_t& length
 )
 {
-    (void)payload;
-
     if (compareTopics(topic, DeviceTypeSerializer::CommandTopic)) {
         bool state = (length == strlen(DeviceTypeSerializer::StateOn));
         setState(state, true);
@@ -69,6 +79,23 @@ void HALight::onMqttMessage(
         if (brightness >= 0) {
             setBrightness(brightness);
         }
+    } else if (compareTopics(topic, RGBCommandTopic)) {
+        char RGBColorStr[length + 1];
+        memset(RGBColorStr, 0, sizeof(RGBColorStr));
+        memcpy(RGBColorStr, payload, length);
+
+        String strPayload;
+        for (uint8_t i = 0; i < length; i++) {
+            strPayload.concat((char)payload[i]);
+        }
+        // get the position of the first and second commas
+        uint8_t firstIndex = strPayload.indexOf(',');
+        uint8_t lastIndex = strPayload.lastIndexOf(',');
+    
+        uint8_t rgb_red = strPayload.substring(0, firstIndex).toInt();
+        uint8_t rgb_green = strPayload.substring(firstIndex + 1, lastIndex).toInt();
+        uint8_t rgb_blue = strPayload.substring(lastIndex + 1).toInt();
+        setColor(rgb_red, rgb_green, rgb_blue);
     }
 }
 
@@ -98,6 +125,23 @@ bool HALight::setBrightness(uint8_t brightness)
 
         if (_brightnessCallback) {
             _brightnessCallback(_currentBrightness);
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+bool HALight::setColor(uint8_t red, uint8_t green, uint8_t blue)
+{
+    if (publishRGBColor(red, green, blue)) {
+        _colorRed = red;
+        _colorGreen = green;
+        _colorBlue = blue;
+
+        if (_colorCallback) {
+            _colorCallback(_colorRed, _colorGreen, _colorBlue);
         }
 
         return true;
@@ -137,6 +181,23 @@ bool HALight::publishBrightness(uint8_t brightness)
     return DeviceTypeSerializer::mqttPublishMessage(
         this,
         BrightnessStateTopic,
+        str
+    );
+}
+
+bool HALight::publishRGBColor(uint8_t red, uint8_t green, uint8_t blue)
+{
+    if (strlen(uniqueId()) == 0) {
+        return false;
+    }
+
+    char str[20]; // + null terminator
+    memset(str, 0, sizeof(str));
+    snprintf(str, 20, "%d,%d,%d", red, green, blue);
+
+    return DeviceTypeSerializer::mqttPublishMessage(
+        this,
+        RGBStateTopic,
         str
     );
 }
@@ -246,6 +307,43 @@ uint16_t HALight::calculateSerializedLength(const char* serializedDevice) const
 #endif
     }
 
+    // rgb
+    {
+        // rgb command topic
+        {
+            const uint16_t& topicLength = DeviceTypeSerializer::calculateTopicLength(
+                componentName(),
+                uniqueId(),
+                RGBCommandTopic,
+                false
+            );
+
+            if (topicLength == 0) {
+                return 0;
+            }
+
+            // Field format: ,"rgb_cmd_t":"[TOPIC]"
+            size += topicLength + 15; // 15 - length of the JSON decorators for this field
+        }
+
+        // rgb state topic
+        {
+            const uint16_t& topicLength = DeviceTypeSerializer::calculateTopicLength(
+                componentName(),
+                uniqueId(),
+                RGBStateTopic,
+                false
+            );
+
+            if (topicLength == 0) {
+                return 0;
+            }
+
+            // Field format: ,"rgb_stat_t":"[TOPIC]"
+            size += topicLength + 16; // 16 - length of the JSON decorators for this field
+        }        
+    }
+
     return size; // excludes null terminator
 }
 
@@ -286,7 +384,7 @@ bool HALight::writeSerializedData(const char* serializedDevice) const
         );
     }
 
-    // speeds
+    // brightness
     {
         // percentage command topic
         {
@@ -324,6 +422,29 @@ bool HALight::writeSerializedData(const char* serializedDevice) const
             );
         }
 #endif
+    }
+
+    // rgb
+    {
+        // rgb command topic
+        {
+            static const char Prefix[] PROGMEM = {",\"rgb_cmd_t\":\""};
+            DeviceTypeSerializer::mqttWriteTopicField(
+                this,
+                Prefix,
+                RGBCommandTopic
+            );
+        }
+
+        // rgb state topic
+        {
+            static const char Prefix[] PROGMEM = {",\"rgb_stat_t\":\""};
+            DeviceTypeSerializer::mqttWriteTopicField(
+                this,
+                Prefix,
+                RGBStateTopic
+            );
+        }
     }
 
     DeviceTypeSerializer::mqttWriteNameField(getName());

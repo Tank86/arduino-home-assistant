@@ -14,6 +14,8 @@ class HALight : public BaseDeviceType
 public:
     static const char* BrightnessCommandTopic;
     static const char* BrightnessStateTopic;
+    static const char* RGBCommandTopic;
+    static const char* RGBStateTopic;
 
     HALight(const char* uniqueId);
     HALight(const char* uniqueId, HAMqtt& mqtt); // legacy constructor
@@ -86,6 +88,44 @@ public:
     inline void onBrightnessChanged(HALIGHT_STATE_CALLBACK_BRIGHTNESS(callback))
         { _brightnessCallback = callback; }
 
+
+    /**
+     * Sets light color.
+     *
+     * @param red
+     * @param green
+     * @param blue
+     */
+    bool setColor(uint8_t red, uint8_t green, uint8_t blue);
+
+    /**
+     * Returns current color of the light.
+     */
+    inline uint8_t getRed() const
+        { return _colorRed; }
+		
+    /**
+     * Returns current color of the light.
+     */
+    inline uint8_t getGreen() const
+        { return _colorGreen; }
+
+    /**
+     * Returns current color of the light.
+     */
+    inline uint8_t getBlue() const
+        { return _colorBlue; }
+
+    /**
+     * Registers callback that will be called each time the state of the light changes.
+     * Please note that it's not possible to register multiple callbacks for the same light.
+     *
+     * @param callback
+     */
+    inline void onColorChanged(HALIGHT_STATE_CALLBACK_RGB(callback))
+        { _colorCallback = callback; }
+
+
     /**
      * Sets `retain` flag for commands published by Home Assistant.
      * By default it's set to false.
@@ -107,6 +147,7 @@ public:
 private:
     bool publishState(bool state);
     bool publishBrightness(uint8_t brightness);
+    bool publishRGBColor(uint8_t red, uint8_t green, uint8_t blue);
     uint16_t calculateSerializedLength(const char* serializedDevice) const override;
     bool writeSerializedData(const char* serializedDevice) const override;
 
@@ -115,9 +156,10 @@ private:
     HALIGHT_STATE_CALLBACK_BOOL(_stateCallback);
     uint16_t _currentBrightness;
     HALIGHT_STATE_CALLBACK_BRIGHTNESS(_brightnessCallback);
-    //TODO uint8_t _colorRed;
-    //TODO uint8_t _colorGreen;
-    //TODO uint8_t _colorBlue;
+    uint8_t _colorRed;
+    uint8_t _colorGreen;
+    uint8_t _colorBlue;
+    HALIGHT_STATE_CALLBACK_RGB(_colorCallback);
 
     bool _retain;
     const char* _icon;
