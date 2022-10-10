@@ -119,6 +119,13 @@ public:
      * @param length Th length of the buffer.
      */
     static HAUtils::Number strToNumber(const uint8_t* buffer, const uint16_t length);
+
+
+    /**
+     * Take a hex string and convert it to a 64bit number (max 16 hex digits).
+     * The string must only contain digits and valid hex characters.
+     */
+    static uint64_t xTou64(const uint8_t* str);
 };
 
 #endif

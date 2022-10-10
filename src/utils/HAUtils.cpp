@@ -212,3 +212,17 @@ HAUtils::Number HAUtils::strToNumber(const uint8_t* src, const uint16_t length)
 
     return isSigned ? out * -1 : out;
 }
+
+uint64_t HAUtils::xTou64(const uint8_t* str)
+{
+    uint64_t res = 0;
+    char c;
+
+    while ((c = *str++)) {
+        char v = (c & 0xF) + (c >> 6) | ((c >> 3) & 0x8);
+        res = (res << 4) | (uint64_t) v;
+    }
+
+    return res;
+}
+

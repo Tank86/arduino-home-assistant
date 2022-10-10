@@ -16,47 +16,65 @@ void HALight::RGBColor::fromBuffer(const uint8_t* data, const uint16_t length)
         return;
     }
 
-    uint8_t firstCommaPos = 0;
-    uint8_t secondCommaPos = 0;
+    // Recived in Hexa mode as format #RRGGBB
+    if ((length == 7) && (data[0] == '#')) {
+        uint8_t tmp_r[3] = {0};
+        uint8_t tmp_g[3] = {0};
+        uint8_t tmp_b[3] = {0};
+        memcpy(tmp_r, &data[1], 2);
+        memcpy(tmp_g, &data[3], 2);
+        memcpy(tmp_b, &data[5], 2);
 
-    for (uint8_t i = 0; i < length; i++) {
-        if (data[i] == ',') {
-            if (firstCommaPos == 0) {
-                firstCommaPos = i;
-            } else if (secondCommaPos == 0) {
-                secondCommaPos = i;
-            }
-        }
-    }
-
-    if (firstCommaPos == 0 || secondCommaPos == 0) {
-        return;
-    }
-
-    const uint8_t redLen = firstCommaPos;
-    const uint8_t greenLen = secondCommaPos - firstCommaPos - 1; // minus comma
-    const uint8_t blueLen = length - redLen - greenLen - 2; // minus two commas
-
-    HAUtils::Number r = HAUtils::strToNumber(data, redLen);
-    HAUtils::Number g = HAUtils::strToNumber(
-        &data[redLen + 1],
-        greenLen
-    );
-    HAUtils::Number b = HAUtils::strToNumber(
-        &data[redLen + greenLen + 2],
-        blueLen
-    );
-
-    if (
-        r >= 0 && r <= 255 &&
-        g >= 0 && g <= 255 &&
-        b >= 0 && b <= 255
-    ) {
-        red = static_cast<uint8_t>(r);
-        green = static_cast<uint8_t>(g);
-        blue = static_cast<uint8_t>(b);
+        red = HAUtils::xTou64(tmp_r);
+        green = HAUtils::xTou64(tmp_g);
+        blue = HAUtils::xTou64(tmp_b);
         isSet = true;
     }
+    // Received as decimal coma separated format (e.g. 255,47,86)
+    else {
+	    uint8_t firstCommaPos = 0;
+	    uint8_t secondCommaPos = 0;
+
+	    for (uint8_t i = 0; i < length; i++) {
+	        if (data[i] == ',') {
+	            if (firstCommaPos == 0) {
+	                firstCommaPos = i;
+	            } else if (secondCommaPos == 0) {
+	                secondCommaPos = i;
+	            }
+	        }
+	    }
+
+	    if (firstCommaPos == 0 || secondCommaPos == 0) {
+	        return;
+	    }
+
+	    const uint8_t redLen = firstCommaPos;
+	    const uint8_t greenLen = secondCommaPos - firstCommaPos - 1; // minus comma
+	    const uint8_t blueLen = length - redLen - greenLen - 2; // minus two commas
+
+	    HAUtils::Number r = HAUtils::strToNumber(data, redLen);
+	    HAUtils::Number g = HAUtils::strToNumber(
+	        &data[redLen + 1],
+	        greenLen
+	    );
+	    HAUtils::Number b = HAUtils::strToNumber(
+	        &data[redLen + greenLen + 2],
+	        blueLen
+	    );
+
+        if (
+            r >= 0 && r <= 255 &&
+            g >= 0 && g <= 255 &&
+            b >= 0 && b <= 255
+        ) {
+            red = static_cast<uint8_t>(r);
+            green = static_cast<uint8_t>(g);
+            blue = static_cast<uint8_t>(b);
+            isSet = true;
+        }
+	}
+
 }
 
 HALight::HALight(const char* uniqueId, const uint8_t features) :
@@ -318,18 +336,26 @@ bool HALight::publishRGBColor(const RGBColor& color)
     }
 
     char str[RGBStringMaxLength] = {0};
-    uint16_t len = 0;
+    if (_features & RGBHEXAFeature)
+    {
+        // Color sent as hexa mode (jeedom)
+        snprintf(str, 11, "#%2x%2x%2x", color.red, color.green, color.blue);
+    }
+    else
+    {
+       uint16_t len = 0;
 
-    // append red color with comma
-    len += HAUtils::numberToStr(&str[0], color.red);
-    str[len++] = ',';
+       // append red color with comma
+       len += HAUtils::numberToStr(&str[0], color.red);
+       str[len++] = ',';
 
-    // append green color with comma
-    len += HAUtils::numberToStr(&str[len], color.green);
-    str[len++] = ',';
+       // append green color with comma
+       len += HAUtils::numberToStr(&str[len], color.green);
+       str[len++] = ',';
 
-    // append blue color
-    HAUtils::numberToStr(&str[len], color.blue);
+       // append blue color
+       HAUtils::numberToStr(&str[len], color.blue);
+    }
 
     return publishOnDataTopic(AHATOFSTR(HARGBStateTopic), str, true);
 }

@@ -9,7 +9,7 @@
 #define HALIGHT_STATE_CALLBACK(name) void (*name)(bool state, HALight* sender)
 #define HALIGHT_BRIGHTNESS_CALLBACK(name) void (*name)(uint8_t brightness, HALight* sender)
 #define HALIGHT_COLOR_TEMP_CALLBACK(name) void (*name)(uint16_t temperature, HALight* sender)
-#define HALIGHT_RGB_COLOR_CALLBACK(name) void (*name)(HALight::RGBColor color, HALight* sender)
+#define HALIGHT_RGB_COLOR_CALLBACK(name) void (*name)(const HALight::RGBColor& color, HALight* sender)
 
 /**
  * HALight allows adding a controllable light in the Home Assistant panel.
@@ -32,7 +32,8 @@ public:
         DefaultFeatures = 0,
         BrightnessFeature = 1,
         ColorTemperatureFeature = 2,
-        RGBFeature = 4
+        RGBFeature = 4,
+        RGBHEXAFeature = 8,
     };
 
     struct RGBColor {
@@ -67,6 +68,11 @@ public:
         }
 
         void fromBuffer(const uint8_t* data, const uint16_t length);
+
+	    String toString() const {
+	        return (String(red) + String(", ") + String(green) + String(", ") + String(blue));
+	    }
+
     };
 
     /**
